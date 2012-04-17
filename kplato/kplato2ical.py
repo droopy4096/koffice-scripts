@@ -325,4 +325,4 @@ if __name__ == "__main__":
     kplato=KPlatoFile(sys.argv[1])
     kplato.load()
     k2i=KPlato2Ical()
-    k2i.compile_ical(kplato,'Reality')
+    k2i.compile_ical(kplato,sys.argv[2])

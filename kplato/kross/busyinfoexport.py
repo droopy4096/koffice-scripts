@@ -1,8 +1,19 @@
 #!/usr/bin/env kross
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
 import os, sys, traceback
-import Kross, KPlato
+import Kross
+
+from icalendar import Calendar, Event
+
+try:
+    import KPlato
+    cli=False
+except:
+    KPlato=Kross.module("KPlato")
+    cli=True
+
 # from icalendar import UTC # timezone
 # from icalendar import Calendar, Event
 from datetime import datetime
@@ -19,13 +30,25 @@ def i18n(text, args = []):
 
 class ICSBusyinfoExporter:
 
-    def __init__(self, scriptaction):
+    def __init__(self, scriptaction,cli=False):
         self.scriptaction = scriptaction
         self.currentpath = self.scriptaction.currentPath()
 
-        self.proj = KPlato.project()
-        
+        self.cli=cli
+
         self.forms = Kross.module("forms")
+
+        if not self.cli:
+            # launched from inside KPlato
+            self.proj = KPlato.project()
+        else:
+            # launched as a standalone script...
+            print("opening doc...")
+            filename=self.showImportDialog()
+            KPlato.document().openUrl(filename)
+            print( filename)
+            self.proj=KPlato.project()
+        
         self.dialog = self.forms.createDialog(i18n("Busy Information Export"))
         self.dialog.setButtons("Ok|Cancel")
         self.dialog.setFaceType("List") #Auto Plain List Tree Tabbed
@@ -71,23 +94,42 @@ class ICSBusyinfoExporter:
         if schId == -1:
             self.forms.showMessageBox("Sorry", i18n("Error"), i18n("No schedule selected"))
             return
-        print "=================== foo =================="
         # cal= Calendar()
         # cal.add('prodid', '-//'+project.id()+'//'+KPlato.data(project, 'NodeName'))
         # cal.add('version', '0.1')
         file = open( filename, 'wb' )
+        print("=================== "+str(project.id())+str(KPlato.data(project,'NodeName'))+" ==================",file=file)
         for i in range( project.resourceGroupCount() ):
             g = project.resourceGroupAt( i )
-            print g
+            print (g,file=file)
             for ri in range( g.resourceCount() ):
                 r = g.resourceAt( ri )
+                print("====> r:\n\t", "\n\t".join( dir(r)),file=file)
                 lst = r.appointmentIntervals( schId )
+                print("====> lst:\n\t", "\n\t".join(dir(lst)),file=file)
                 for iv in lst:
-                    print r.id(), KPlato.data( r, 'ResourceName' ), iv
+                    print(r.id(), KPlato.data( r, 'ResourceName' ), iv, sep=" | ", file=file)
+                    print ("====> iv:\n\t", "\n\t".join( dir(iv)),file=file)
                     # iv.insert( 0, r.id() )
                     # iv.insert( 1, KPlato.data( r, 'ResourceName' ) )
                     # pickle.dump( iv, file )
 
         file.close()
 
-ICSBusyinfoExporter( self )
+    def showImportDialog(self):
+        dialog = self.forms.createDialog(i18n("KPlato Import"))
+        dialog.setButtons("Ok|Cancel")
+        dialog.setFaceType("List") #Auto Plain List Tree Tabbed
+
+        openpage = dialog.addPage(i18n("Open"),i18n("Import from KPlato Project File"),"document-import")
+        openwidget = self.forms.createFileWidget(openpage, "kfiledialog:///kspreadkplatoimportopen")
+        openwidget.setMode("Opening")
+        openwidget.setFilter("*.kplato|%(1)s\n*|%(2)s" % { '1' : i18n("KPlato Project Files"), '2' : i18n("All Files") })
+        if dialog.exec_loop():
+            filename = openwidget.selectedFile()
+            if not os.path.isfile(filename):
+                raise Exception, i18n("No file selected.")
+            return filename
+        return None
+
+ICSBusyinfoExporter( self , cli=cli)
